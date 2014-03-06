@@ -39,7 +39,8 @@ type CellList struct{
 
 func evalList(list Parser.Token){
 	firstVal := &list.ListVals[0]
-	if firstVal.Type == Parser.NumToken{
+	switch firstVal.Type{
+	case Parser.NumToken : 
 		errMsg := fmt.Sprintf("Error: attempting to evaluate a literal, %v, at line %v.\n",firstVal.Value, firstVal.LineNum) 
 		panic(errMsg)
 	} 
@@ -47,7 +48,7 @@ func evalList(list Parser.Token){
 
 func main(){
 	//types := []string{"Int", "Float", "Char", "Symbol", "List"}
-	input := `(1 3 lenny)`
+	input := `(+ 3 lenny)`
 	res := Parser.Lex(input)
 	tokens := Parser.ParseList(res, 0)
 	for _, tok := range tokens.ListVals{
