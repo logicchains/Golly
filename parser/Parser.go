@@ -30,13 +30,13 @@ type Token struct{
 	LineNum int
 }
 
-func Lex(input string) []string{
+func Lex(input *string) *[]string{
 	input = strings.Replace(input, "(", " ( ", -1)
 	input = strings.Replace(input, ")", " ) ",-1)
 	input = strings.Replace(input, "\n\r", "\n",-1)
 	input = strings.Replace(input, "\r", "\n",-1)
 	input = strings.Replace(input, "\n", " " + NEW_LINE + " ",-1)
-	return strings.Split(input, " ")
+	return &(strings.Split(input, " "))
 }
 
 func findMatchingParenDist(lexemes []string)(int,error){
