@@ -13,7 +13,9 @@ const(
 	NullToken  tokenType = iota
 	ListToken
 	IdToken
+	DefToken
 	NumToken
+	TypeDefToken
 )
 
 type numType int
@@ -30,13 +32,13 @@ type Token struct{
 	LineNum int
 }
 
-func Lex(input *string) *[]string{
-	input = strings.Replace(input, "(", " ( ", -1)
-	input = strings.Replace(input, ")", " ) ",-1)
-	input = strings.Replace(input, "\n\r", "\n",-1)
-	input = strings.Replace(input, "\r", "\n",-1)
-	input = strings.Replace(input, "\n", " " + NEW_LINE + " ",-1)
-	return &(strings.Split(input, " "))
+func Lex(input *string) []string{
+	*input = strings.Replace(*input, "(", " ( ", -1)
+	*input = strings.Replace(*input, ")", " ) ",-1)
+	*input = strings.Replace(*input, "\n\r", "\n",-1)
+	*input = strings.Replace(*input, "\r", "\n",-1)
+	*input = strings.Replace(*input, "\n", " " + NEW_LINE + " ",-1)
+	return (strings.Split(*input, " "))
 }
 
 func findMatchingParenDist(lexemes []string)(int,error){
@@ -74,11 +76,17 @@ func numToToken(number string)(Token,error){
 	}
 }
 
-func idToToken(id string)(Token,error){
+func strToToken(id string)(Token,error){
 	for _, _ = range id{
 	}
 	strings.TrimSpace(id)
-	return Token{Type: IdToken, Value: id}, nil
+	if id == "let" || id == "letm" || id == "def" || id == "defm"{
+		return Token{Type: DefToken, Value: id}, nil
+	}else if id == ":"{
+		return Token{Type: TypeDefToken, Value: id}, nil
+	}else {
+		return Token{Type: IdToken, Value: id}, nil
+	}
 }
 
 func ParseList(lexemes []string, initLine int)Token{
@@ -114,7 +122,7 @@ func ParseList(lexemes []string, initLine int)Token{
 					}
 					newToken = token
 				}else{
-					token, err := idToToken(lexeme)
+					token, err := strToToken(lexeme)
 					if err != nil{
 						fmt.Printf("Error: malformed identifier at line %v; %v\n",
 							len(strings.Split(strings.Join(lexemes,""),"\n")),err) 

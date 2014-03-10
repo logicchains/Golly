@@ -2,7 +2,7 @@ package main
 
 import( 
 	"fmt"
-	"golly/parser"
+	"Golly/parser"
 )
 
 type baseType int
@@ -25,6 +25,10 @@ type FunctionDef struct{
 	NumParems int16
 	Parems []FuncParem
 	ReturnVals []FuncParem
+}
+
+type TypeDef struct{
+	Name string
 }
 
 type EnvCell struct{
@@ -70,6 +74,13 @@ func defGlobal(environ *[]EnvCell) *EnvCell{
 	}
 }
 
+func evalType(token *Parser.Token) (TypeDef, error){
+	if token.Type != Parser.IdToken{
+
+	}
+	return TypeDef{}, nil
+}
+
 func bindVars(list *Parser.Token, environ []EnvCell, lineNum int, global, mut bool, caller string)[]EnvCell{
 	for i := 0; i < len(list.ListVals); i++{
 		val := &list.ListVals[i]
@@ -93,45 +104,51 @@ func bindVars(list *Parser.Token, environ []EnvCell, lineNum int, global, mut bo
 				environ = append(environ, EnvCell{}) 
 				newBinding = &(environ[len(environ)])
 			}
+		}
 		newBinding.Name = val.Value
 		newBinding.Mutable = mut
-		
+		nextVal := &list.ListVals[i+1]
+		var newValType TypeDef
+		if (*nextVal).Type == Parser.TypeDefToken{
+			newValType, err := evalType(nextVal)
 		}
+		newVal := evalListToken(nextVal)
+
 	}
 	return environ
 }
 
-func evalListToken(list *Parser.Token){
+func evalListToken(list *Parser.Token)(ListCell){
 	firstVal := &list.ListVals[0]
 //	initCellList := CellList{}
 	switch firstVal.Type{
 	case Parser.NumToken: 
 		errMsg := fmt.Sprintf("Error: attempting to evaluate a literal, %v, at line %v.\n",firstVal.Value, firstVal.LineNum) 
 		panic(errMsg)
-	case Parser.IdToken:
-		if firstVal.Value == "let"{
-			if len(list.ListVals) < 3{
-				errMsg := fmt.Sprintf("Error: too few arguments to let at line %v.\n", firstVal.LineNum) 
-				panic(errMsg)				
-			}else if list.ListVals[1].Type != Parser.ListToken{
-				errMsg := fmt.Sprintf("Error: first argument (%v) to let at line %v is not a list.\n",list.ListVals[1].Value, firstVal.LineNum) 
-				panic(errMsg)				
-			}else if list.ListVals[2].Type != Parser.ListToken{
-				errMsg := fmt.Sprintf("Error: second argument (%v) to let  at line %v is not a list.\n",list.ListVals[2].Value, firstVal.LineNum) 
-				panic(errMsg)				
-			}else if len(list.ListVals) > 3{
-				errMsg := fmt.Sprintf("Error: too many arguments to let at line %v.\n", firstVal.LineNum) 
-				panic(errMsg)				
-			}
-			
+	case Parser.DefToken:
+		defKind := &firstVal.Value
+		if len(list.ListVals) < 3{
+			errMsg := fmt.Sprintf("Error: too few arguments to %v at line %v.\n", defKind, firstVal.LineNum) 
+			panic(errMsg)				
+		}else if list.ListVals[1].Type != Parser.ListToken{
+			errMsg := fmt.Sprintf("Error: first argument (%v) to %v at line %v is not a list.\n",list.ListVals[1].Value, defKind, firstVal.LineNum) 
+			panic(errMsg)				
+		}else if list.ListVals[2].Type != Parser.ListToken{
+			errMsg := fmt.Sprintf("Error: second argument (%v) to %v  at line %v is not a list.\n",list.ListVals[2].Value, defKind, firstVal.LineNum) 
+			panic(errMsg)				
+		}else if len(list.ListVals) > 3{
+			errMsg := fmt.Sprintf("Error: too many arguments to %v at line %v.\n",defKind, firstVal.LineNum) 
+			panic(errMsg)				
 		}
-	} 
+			
+	}
+	return ListCell{} 
 }
 
 func main(){
 	//types := []string{"Int", "Float", "Char", "Symbol", "List"}
 	input := `(let (a 1) (b 2))`
-	res := Parser.Lex(input)
+	res := Parser.Lex(&input)
 	tokens := Parser.ParseList(res, 0)
 	for _, tok := range tokens.ListVals{
 		fmt.Println(tok)
