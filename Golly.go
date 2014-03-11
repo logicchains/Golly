@@ -3,6 +3,7 @@ package main
 import( 
 	"fmt"
 	"Golly/parser"
+	"strconv"
 )
 
 type baseType int
@@ -27,37 +28,27 @@ type FunctionDef struct{
 	ReturnVals []FuncParem
 }
 
-type TypeDef struct{
+type Union struct{
+	CurType int16 
+	Types []string 
+}
+
+type EnvBinding struct{
 	Name string
+	Binding interface{}
 }
 
-type EnvCell struct{
-	TypeID int64
-	Name string
-	Value interface{}
-	Mutable bool
-}
+type Environment []EnvBinding
 
-type ListCell struct{
-	TypeID int64
-	Value interface{}
-	Mutable bool
-}
-
-type CellList struct{
-	Cells []ListCell
-	Environment []EnvCell
-}
-
-func findBinding(name string, environ []EnvCell, recur bool) *EnvCell{
-	for i, cell := range environ{
-		if cell.Name == name{
-			return &environ[i]
+func (env Environment) findBinding(name string, recur bool) *EnvBinding{
+	for i, _ := range env{
+		if env[i].Name == name{
+			return &env[i]
 		}
 	}
 	if recur{
-		if parentEnv, ok := environ[0].Value.([]EnvCell); ok {
-			return findBinding(name, parentEnv, true)
+		if parentEnv, ok := env[0].Binding.(Environment); ok {
+			return parentEnv.findBinding(name, true)
 		} else {
 			return nil
 		}
@@ -65,57 +56,123 @@ func findBinding(name string, environ []EnvCell, recur bool) *EnvCell{
 	return nil
 }
 
-func defGlobal(environ *[]EnvCell) *EnvCell{
-	if parentEnv, ok := (*environ)[0].Value.([]EnvCell); ok {
+func (env *Environment) addBinding(recur bool) *EnvBinding{
+	if recur{
+		if parentEnv, ok := (*env)[0].Binding.(Environment); ok {
+			return parentEnv.addBinding(true)
+		} else {
+			*env = append(*env, EnvBinding{})
+			return &((*env)[len(*env)])
+		}
+	}else{
+		*env = append(*env, EnvBinding{})
+		return &((*env)[len(*env)])
+	}
+}
+
+type ListCell struct{
+	TypeName string
+	Value interface{}
+	Mutable bool
+}
+
+type CellList struct{
+	Cells []ListCell
+	Environment []EnvBinding
+}
+
+func defGlobal(environ *[]EnvBinding) *EnvBinding{
+	if parentEnv, ok := (*environ)[0].Binding.([]EnvBinding); ok {
 		return defGlobal(&parentEnv)
 	} else {
-		*environ = append(*environ, EnvCell{})
+		*environ = append(*environ, EnvBinding{})
 		return &((*environ)[len(*environ)])
 	}
 }
 
-func evalType(token *Parser.Token) (TypeDef, error){
-	if token.Type != Parser.IdToken{
-
-	}
-	return TypeDef{}, nil
+func evalNumToken(num *Parser.Token, lineNum int, caller string)(ListCell){
+	newValue := ListCell{}
+			if (*num).NumType == Parser.FixNum{
+				floatval, err := strconv.ParseFloat((*num).Value, 32)
+				if err != nil{
+					errMsg := fmt.Sprintf("Error: cannot parse string %v to float in %v at line %v.\n", (*num).Value, caller, lineNum) 
+					panic(errMsg)
+				}else{
+					newValue.Value = floatval
+					newValue.TypeName = "float"
+				}
+			}else if (*num).NumType == Parser.FixNum{
+				intval, err := strconv.Atoi((*num).Value)
+				if err != nil{
+					errMsg := fmt.Sprintf("Error: cannot parse string %v to int in %v at line %v.\n", (*num).Value, caller, lineNum) 
+					panic(errMsg)
+				}else{
+					newValue.Value = intval
+					newValue.TypeName = "int"
+				}
+			}
+	return newValue
 }
 
-func bindVars(list *Parser.Token, environ []EnvCell, lineNum int, global, mut bool, caller string)[]EnvCell{
+func evalIdToken(identifierName *Parser.Token, env *Environment, lineNum int, caller string)(interface{}){
+	var newValue interface{}
+	valueReferenced := env.findBinding((*identifierName).Value, true)
+			if valueReferenced == nil{
+				errMsg := fmt.Sprintf("Error: attempting to evalute var %v in %v at line %v, but that var is unbound.\n", (*identifierName).Value, caller, lineNum) 
+				panic(errMsg)
+			}else{
+				newValue = valueReferenced.Binding
+			}
+	return newValue
+}
+func bindVars(list *Parser.Token, env Environment, lineNum int, global, mut bool, caller string)[]EnvBinding{
 	for i := 0; i < len(list.ListVals); i++{
 		val := &list.ListVals[i]
 		if val.Type != Parser.IdToken{
 			errMsg := fmt.Sprintf("Error: attempting to assign to a non-identifier in %v at line %v.\n", caller, lineNum) 
 			panic(errMsg)				
 		}
-		prevBinding := findBinding(val.Value, environ, global)
-		var newBinding *EnvCell
+		prevBinding := env.findBinding(val.Value, global)
+		var newBinding *EnvBinding
 		if prevBinding != nil{
-			if !prevBinding.Mutable{
-				errMsg := fmt.Sprintf("Error: attempting to assign to an immutable identifier in %v at line %v.\n", caller, lineNum) 
+			if boundVal, ok := (*prevBinding).Binding.(ListCell); ok {
+				if !boundVal.Mutable{
+					errMsg := fmt.Sprintf("Error: attempting to assign to an immutable identifier in %v at line %v.\n", caller, lineNum) 
+					panic(errMsg)				
+				}else{
+					newBinding = prevBinding
+				}
+			} else {	
+				errMsg := fmt.Sprintf("Error: malformed environment binding encountered in binding for %v in %v at line %v.\n", val.Value, caller, lineNum) 
 				panic(errMsg)				
-			}else{
-				newBinding = prevBinding
 			}
 		}else{
-			if global{
-				newBinding = defGlobal(&environ)
-			}else{
-				environ = append(environ, EnvCell{}) 
-				newBinding = &(environ[len(environ)])
-			}
+			newBinding = env.addBinding(global)
 		}
-		newBinding.Name = val.Value
-		newBinding.Mutable = mut
+		if i >= len(list.ListVals){
+			errMsg := fmt.Sprintf("Error: nothing to assign to %v in %v at line %v.\n", val.Value, caller, lineNum) 
+			panic(errMsg)
+		}
 		nextVal := &list.ListVals[i+1]
-		var newValType TypeDef
-		if (*nextVal).Type == Parser.TypeDefToken{
-			newValType, err := evalType(nextVal)
+		newBinding.Name = val.Value
+		newValue := ListCell{}
+		switch (*nextVal).Type {
+		case Parser.NumToken:
+			newValue = evalNumToken(nextVal,lineNum,caller)
+		case Parser.DefToken:
+		case Parser.ListToken:
+			newValue.Value = evalListToken(nextVal)
 		}
-		newVal := evalListToken(nextVal)
+		//newBinding.Mutable = mut
+
+		//var newValType TypeDef
+		if (*nextVal).Type == Parser.TypeDefToken{
+			//newValType, err := evalType(nextVal)
+		}
+		//newVal := evalListToken(nextVal)
 
 	}
-	return environ
+	return env
 }
 
 func evalListToken(list *Parser.Token)(ListCell){
