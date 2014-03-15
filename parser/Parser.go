@@ -14,19 +14,19 @@ const(
 	ListToken
 	IdToken
 	DefToken
-	NumToken
-	TypeDefToken
+	LiteralToken
+	TypeAnnToken
 )
 
-type numType int
+type litType int
 const(
-	FixNum numType = iota
+	FixNum litType = iota
 	FloNum
 )
 
 type Token struct{
 	Type tokenType
-	NumType numType
+	LitType litType
 	Value string
 	ListVals []Token
 	LineNum int
@@ -70,9 +70,9 @@ func numToToken(number string)(Token,error){
 		}
 	}
 	if numDots > 1{
-		return Token{Type: NumToken, NumType: FloNum, Value: number}, nil
+		return Token{Type: LiteralToken, LitType: FloNum, Value: number}, nil
 	}else{
-		return Token{Type: NumToken, NumType: FixNum, Value: number}, nil
+		return Token{Type: LiteralToken, LitType: FixNum, Value: number}, nil
 	}
 }
 
@@ -83,7 +83,7 @@ func strToToken(id string)(Token,error){
 	if id == "let" || id == "letm" || id == "def" || id == "defm"{
 		return Token{Type: DefToken, Value: id}, nil
 	}else if id == ":"{
-		return Token{Type: TypeDefToken, Value: id}, nil
+		return Token{Type: TypeAnnToken, Value: id}, nil
 	}else {
 		return Token{Type: IdToken, Value: id}, nil
 	}
