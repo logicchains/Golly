@@ -28,9 +28,15 @@ type FunctionDef struct{
 	ReturnVals []FuncParem
 }
 
+type singleType struct{
+	Inputs []string
+	Outputs []string
+	Order int8 
+}
+
 type TypeDef struct{
 	Name string
-	Order int32
+	Types []singleType
 }
 
 type Union struct{
@@ -40,7 +46,7 @@ type Union struct{
 
 type EnvBinding struct{
 	Name string
-	Binding interface{}
+	Binding ListCell
 }
 
 type Environment []EnvBinding
@@ -55,9 +61,13 @@ func (env Environment) findBinding(name string, recur bool) *EnvBinding{
 		if len(env) == 0{
 			panic("Error: root environment is empty!\n")
 		}
-		if parentEnv, ok := env[0].Binding.(Environment); ok {
-			return parentEnv.findBinding(name, true)
-		} else {
+		if env[0].Binding.TypeName == "environment"{
+			if parentEnv, ok := env[0].Binding.Value.(Environment); ok {	
+				return parentEnv.findBinding(name, true)
+			}else{
+				panic("Error: encountered an environment-typed cell that contained no environment! This shouldn't happen; report it as a bug.\n")
+			}
+		}else{
 			return nil
 		}
 	}
@@ -66,9 +76,13 @@ func (env Environment) findBinding(name string, recur bool) *EnvBinding{
 
 func (env *Environment) addBinding(recur bool) *EnvBinding{
 	if recur{
-		if parentEnv, ok := (*env)[0].Binding.(Environment); ok {
-			return parentEnv.addBinding(true)
-		} else {
+		if (*env)[0].Binding.TypeName == "environment"{
+			if parentEnv, ok := (*env)[0].Binding.Value.(Environment); ok {
+				return parentEnv.addBinding(true)
+			}else{
+				panic("Error: encountered an environment-typed cell that contained no environment! This shouldn't happen; report it as a bug.\n")
+			}		
+		}else {
 			*env = append(*env, EnvBinding{})
 			return &((*env)[len(*env)])
 		}
@@ -87,15 +101,6 @@ type ListCell struct{
 type CellList struct{
 	Cells []ListCell
 	Environment []EnvBinding
-}
-
-func defGlobal(environ *[]EnvBinding) *EnvBinding{
-	if parentEnv, ok := (*environ)[0].Binding.([]EnvBinding); ok {
-		return defGlobal(&parentEnv)
-	} else {
-		*environ = append(*environ, EnvBinding{})
-		return &((*environ)[len(*environ)])
-	}
 }
 
 func evalNumToken(num *Parser.Token, lineNum int, caller string)(ListCell){
@@ -143,16 +148,11 @@ func bindVars(list *Parser.Token, env Environment, lineNum int, global, mut bool
 		prevBinding := env.findBinding(val.Value, global)
 		var newBinding *EnvBinding
 		if prevBinding != nil{
-			if boundVal, ok := (*prevBinding).Binding.(ListCell); ok {
-				if !boundVal.Mutable{
-					errMsg := fmt.Sprintf("Error: attempting to assign to an immutable identifier in %v at line %v.\n", caller, lineNum) 
-					panic(errMsg)				
-				}else{
-					newBinding = prevBinding
-				}
-			} else {	
-				errMsg := fmt.Sprintf("Error: malformed environment binding encountered in binding for %v in %v at line %v.\n", val.Value, caller, lineNum) 
+			if !(*prevBinding).Binding.Mutable{
+				errMsg := fmt.Sprintf("Error: attempting to assign to an immutable identifier in %v at line %v.\n", caller, lineNum) 
 				panic(errMsg)				
+			}else{
+				newBinding = prevBinding
 			}
 		}else{
 			newBinding = env.addBinding(global)
@@ -209,7 +209,7 @@ func bindVars(list *Parser.Token, env Environment, lineNum int, global, mut bool
 				}
 			}
 			namesBinding := env.findBinding(typeName, true)
-			if _, ok := namesBinding.Binding.(TypeDef); ok{
+			if namesBinding.Binding.TypeName == "type"{
 				typeNameAnnotated = typeName	
 			}else{
 				errMsg := fmt.Sprintf("Error: attempting to assign type %v to %v in %v at line %v, but that type is not bound.\n", typeName, val.Value, caller, lineNum) 
