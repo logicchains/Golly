@@ -17,15 +17,10 @@ const(
 	VarDef
 )
 
-type FuncParem struct{
-	Name string
-	TypeID int64
-}
-
-type FunctionDef struct{
-	NumParems int16
-	Parems []FuncParem
-	ReturnVals []FuncParem
+type FunctionObj struct{
+	Type TypeObj
+	Parems []string
+	Body []ListCell
 }
 
 type singleType struct{
@@ -34,14 +29,9 @@ type singleType struct{
 	Order int8 
 }
 
-type TypeDef struct{
+type TypeObj struct{
 	Name string
 	Types []singleType
-}
-
-type Union struct{
-	CurType int16 
-	Types []string 
 }
 
 type EnvBinding struct{
@@ -49,26 +39,32 @@ type EnvBinding struct{
 	Binding ListCell
 }
 
-type Environment []EnvBinding
+type SysEnvironment struct{
+	 Bindings map[string]EnvBinding
+}
 
-func (env Environment) findBinding(name string, recur bool) *EnvBinding{
-	for i, _ := range env{
-		if env[i].Name == name{
-			return &env[i]
+type Environment struct{
+	Bindings []EnvBinding
+	Parent *Environment
+	System *SysEnvironment
+}
+
+func (env Environment) findBinding(name string, recur, checkSystem bool) *EnvBinding{
+	if checkSystem{
+		if binding, ok := env.System.Bindings[name]; ok {
+			return &binding
+		}
+	}
+	for i, binding := range env.Bindings{
+		if binding.Name == name{
+			return &env.Bindings[i]
 		}
 	}
 	if recur{
-		if len(env) == 0{
-			panic("Error: root environment is empty!\n")
-		}
-		if env[0].Binding.TypeName == "environment"{
-			if parentEnv, ok := env[0].Binding.Value.(Environment); ok {	
-				return parentEnv.findBinding(name, true)
-			}else{
-				panic("Error: encountered an environment-typed cell that contained no environment! This shouldn't happen; report it as a bug.\n")
-			}
-		}else{
+		if env.Parent == nil{
 			return nil
+		}else{
+			return env.Parent.findBinding(name, true, false)
 		}
 	}
 	return nil
@@ -76,19 +72,15 @@ func (env Environment) findBinding(name string, recur bool) *EnvBinding{
 
 func (env *Environment) addBinding(recur bool) *EnvBinding{
 	if recur{
-		if (*env)[0].Binding.TypeName == "environment"{
-			if parentEnv, ok := (*env)[0].Binding.Value.(Environment); ok {
-				return parentEnv.addBinding(true)
-			}else{
-				panic("Error: encountered an environment-typed cell that contained no environment! This shouldn't happen; report it as a bug.\n")
-			}		
-		}else {
-			*env = append(*env, EnvBinding{})
-			return &((*env)[len(*env)])
+		if env.Parent == nil{
+			env.Bindings = append(env.Bindings, EnvBinding{})	
+			return &((env.Bindings)[len(env.Bindings)])
+		}else{
+			return env.Parent.addBinding(true)
 		}
 	}else{
-		*env = append(*env, EnvBinding{})
-		return &((*env)[len(*env)])
+		env.Bindings = append(env.Bindings, EnvBinding{})
+		return &((env.Bindings)[len(env.Bindings)])
 	}
 }
 
@@ -129,7 +121,7 @@ func evalNumToken(num *Parser.Token, lineNum int, caller string)(ListCell){
 
 func evalIdToken(identifierName *Parser.Token, env *Environment, lineNum int, caller string)(interface{}){
 	var newValue interface{}
-	valueReferenced := env.findBinding((*identifierName).Value, true)
+	valueReferenced := env.findBinding((*identifierName).Value, true, true)
 			if valueReferenced == nil{
 				errMsg := fmt.Sprintf("Error: attempting to evalute var %v in %v at line %v, but that var is unbound.\n", (*identifierName).Value, caller, lineNum) 
 				panic(errMsg)
@@ -145,7 +137,7 @@ func bindVars(list *Parser.Token, env Environment, lineNum int, global, mut bool
 			errMsg := fmt.Sprintf("Error: attempting to assign to a non-identifier in %v at line %v.\n", caller, lineNum) 
 			panic(errMsg)				
 		}
-		prevBinding := env.findBinding(val.Value, global)
+		prevBinding := env.findBinding(val.Value, global, true)
 		var newBinding *EnvBinding
 		if prevBinding != nil{
 			if !(*prevBinding).Binding.Mutable{
@@ -171,6 +163,14 @@ func bindVars(list *Parser.Token, env Environment, lineNum int, global, mut bool
 		case Parser.DefToken:
 			errMsg := fmt.Sprintf("Error: attempting to assign reserved name %v to %v in %v at line %v.\n", (*nextVal).Value, val.Value, caller, lineNum) 
 			panic(errMsg)
+		case Parser.IdToken:
+			potentialNewValue := env.findBinding(nextVal.Value, true, true)
+			if potentialNewValue != nil{
+				newValue.Value = potentialNewValue
+			}else{
+				errMsg := fmt.Sprintf("Error: attempting to assign identifier %v to %v in %v at line %v, but %v is unbound.\n", (*nextVal).Value, val.Value, caller, lineNum, (*nextVal).Value) 
+				panic(errMsg)				
+			}
 		case Parser.ListToken:
 			newValue.Value = evalListToken(nextVal)
 		case Parser.TypeAnnToken:
@@ -188,27 +188,42 @@ func bindVars(list *Parser.Token, env Environment, lineNum int, global, mut bool
 			case Parser.DefToken:
 				errMsg := fmt.Sprintf("Error: attempting use a reserved name as the type for %v in %v at line %v.\n", val.Value, caller, lineNum) 
 				panic(errMsg)
+			case Parser.IdToken:
+				potentialNewValueType := env.findBinding(nextValType.Value, true, true)
+				if potentialNewValueType != nil{
+					if potentialNewValueType.Binding.TypeName != "type"{
+						errMsg := fmt.Sprintf("Error: attempting to assign something that is not a type, but a %v, to %v in %v at line %v.\n", potentialNewValueType.Binding.TypeName, val.Value, caller, lineNum)
+						panic(errMsg)
+					}else{
+						newNameFound = true
+						newValueType = potentialNewValueType.Binding
+					}
+				}else{
+					errMsg := fmt.Sprintf("Error: attempting to assign identifier %v to %v in %v at line %v, but %v is unbound.\n", 	(*nextVal).Value, val.Value, caller, lineNum, (*nextVal).Value) 
+					panic(errMsg)				
+				}
 			case Parser.ListToken:
 				newValueType = evalListToken(nextVal)
 				if newValueType.TypeName != "type"{
 					errMsg := fmt.Sprintf("Error: attempting to assign something that is not a type, but a %v, to %v in %v at line %v.\n", newValueType.TypeName, val.Value, caller, lineNum)
 					panic(errMsg)
+				}else{
+					newNameFound = true
 				}
-				newNameFound = true
 			case Parser.TypeAnnToken:
 				errMsg := fmt.Sprintf("Error: misplaced type annotation marker in %v at line %v.\n", val.Value, caller, lineNum) 
 				panic(errMsg)
 			}
 			typeName := nextValType.Value
 			if newNameFound{
-				if foundTypeActual, ok := newValueType.Value.(TypeDef); ok {
+				if foundTypeActual, ok := newValueType.Value.(TypeObj); ok {
 					typeName = foundTypeActual.Name
 				}else{
 					errMsg := fmt.Sprintf("Error: cell claiming to be a type actually contains something else, in %v at line %v.\n", caller, lineNum) 
 					panic(errMsg)
 				}
 			}
-			namesBinding := env.findBinding(typeName, true)
+			namesBinding := env.findBinding(typeName, true, true)
 			if namesBinding.Binding.TypeName == "type"{
 				typeNameAnnotated = typeName	
 			}else{
