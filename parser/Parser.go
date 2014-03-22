@@ -22,6 +22,7 @@ type litType int
 const(
 	FixNum litType = iota
 	FloNum
+	String
 )
 
 type Token struct{
