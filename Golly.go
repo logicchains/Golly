@@ -1,4 +1,4 @@
-package main
+package Golly
 
 import (
 	"Golly/parser"
@@ -18,10 +18,13 @@ const (
 	VarDef
 )
 
+
 type FunctionObj struct {
 	Type   TypeObj
 	Parems []string
 	Body   []ListCell
+	Pure   bool
+	GoFunc bool
 }
 
 type singleType struct {
@@ -34,19 +37,19 @@ type TypeObj struct {
 	Types []singleType
 }
 
-func (firstType *TypeObj) EqualTo(secondType *TypeObj) bool{
-	return true;
+func (firstType *TypeObj) EqualTo(secondType *TypeObj) bool {
+	return false
 }
 
-func TypesEqualP(first *ListCell, second *ListCell, lineNum int, caller *string) bool{
+func TypesEqualP(first *ListCell, second *ListCell, lineNum int, caller *string) bool {
 	if firstType, ok := first.Value.(TypeObj); ok {
 		if secondType, ok := second.Value.(TypeObj); ok {
 			return firstType.EqualTo(&secondType)
-		}else{
+		} else {
 			errMsg := fmt.Sprintf("Error: cell claiming to be a type actually contains something else, in %v at line %v.\n", caller, lineNum)
 			panic(errMsg)
 		}
-	}else{
+	} else {
 		errMsg := fmt.Sprintf("Error: cell claiming to be a type actually contains something else, in %v at line %v.\n", caller, lineNum)
 		panic(errMsg)
 	}
@@ -109,8 +112,8 @@ type ListCell struct {
 }
 
 type CellList struct {
-	Cells       []ListCell
-	Environment []EnvBinding
+	Cells []ListCell
+	Env   Environment
 }
 
 func evalLitToken(num *Parser.Token, lineNum int, caller *string) ListCell {
@@ -160,7 +163,7 @@ func parseType(identifierToBindTo, potentialType *Parser.Token, env *Environment
 	switch (*potentialType).Type {
 	case Parser.LiteralToken:
 		errMsg := fmt.Sprintf("Error: attempting use a numeric literal as the type for %v in %v at line %v.\n", identifierToBindTo.Value, caller, lineNum)
-		panic(errMsg)		
+		panic(errMsg)
 	case Parser.DefToken:
 		errMsg := fmt.Sprintf("Error: attempting use a reserved name as the type for %v in %v at line %v.\n", identifierToBindTo.Value, caller, lineNum)
 		panic(errMsg)
@@ -249,7 +252,6 @@ func parseIdentifierToBeBound(identifierToBeBoundTo, identifierToBind *Parser.To
 	default:
 		errMsg := fmt.Sprintf("Error: unhandled token type for %v in %v at line %v.\n", identifierToBind.Value, caller, lineNum)
 		panic(errMsg)
-
 	}
 	return &newValue
 }
@@ -270,10 +272,10 @@ func bindVars(list *Parser.Token, env Environment, lineNum int, global, mut bool
 		var annotatedTypeValue *ListCell
 		nextListItem := &list.ListVals[i+1]
 		if nextListItem.Type == Parser.TypeAnnToken {
-			if i >= len(list.ListVals)+2 {
+			if i+2 >= len(list.ListVals) {
 				errMsg := fmt.Sprintf("Error: no type and/or value provided in assignment to %v in %v at line %v.\n", firstListItem.Value, caller, lineNum)
 				panic(errMsg)
-			}else{
+			} else {
 				potentialTypeItem := &list.ListVals[i+2]
 				annotatedTypeValue, annotatedTypeName = parseType(firstListItem, potentialTypeItem, &env, lineNum, caller)
 				potentialNewValueItem := &list.ListVals[i+3]
@@ -284,10 +286,10 @@ func bindVars(list *Parser.Token, env Environment, lineNum int, global, mut bool
 		} else {
 			potentialNewValue = parseIdentifierToBeBound(firstListItem, nextListItem, &env, global, lineNum, caller)
 		}
-		if isTypeAnnotated{
-			if (annotatedTypeName == "" && TypesEqualP(annotatedTypeValue, &env.findBinding(potentialNewValue.TypeName, true, true).Binding, lineNum, caller)) || 
-			(potentialNewValue.TypeName == "undecided" && potentialNewValue.TypeName == annotatedTypeName) {				
-				if annotatedTypeName != ""{
+		if isTypeAnnotated {
+			if (annotatedTypeName == "" && TypesEqualP(annotatedTypeValue, &env.findBinding(potentialNewValue.TypeName, true, true).Binding, lineNum, caller)) ||
+				(potentialNewValue.TypeName == "undecided" && potentialNewValue.TypeName == annotatedTypeName) {
+				if annotatedTypeName != "" {
 					potentialNewValue.TypeName = annotatedTypeName
 				}
 			} else {
