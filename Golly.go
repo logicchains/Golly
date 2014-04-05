@@ -6,31 +6,48 @@ import (
 	"strconv"
 )
 
-type baseType int
-
-const (
-	Int baseType = iota
-	Float
-	Char
-	Symbol
-	List
-	FuncDef
-	VarDef
-)
-
-
 type FunctionObj struct {
-	Type   TypeObj
+	Type   string
 	Parems []string
 	Body   []ListCell
 	Pure   bool
 	GoFunc bool
+	FuncType goFuncType
+}
+
+func (aFunc *FunctionObj) Call(funcType goFuncType, params []*ListCell)([]*ListCell, error) {
+	if aFunc.GoFunc{
+		returnedVals, err := CallGoFunc(funcType,  params)
+		if err != nil{
+			return nil, err
+		}else{
+			return returnedVals, nil
+		}
+	}else{
+		return nil, nil	
+	}
+}
+
+func makeSysFunc(funcType goFuncType)ListCell{
+	return ListCell{TypeName: "Function", 
+		Value: FunctionObj{Type: "GoFunc", Pure: true, GoFunc: true, FuncType: funcType},
+		Mutable: false}
+}
+
+func CreateSystemFuncs() *SysEnvironment{
+	sysBindings := make(map[string]EnvBinding)
+	sysBindings["if"] = EnvBinding{Binding: makeSysFunc(GoIfT)}
+	sysBindings["+"] = EnvBinding{Binding: makeSysFunc(GoAddT)}
+	sysBindings["-"] = EnvBinding{Binding: makeSysFunc(GoSubtractT)}
+	sysBindings["*"] = EnvBinding{Binding: makeSysFunc(GoMultiplyT)}
+	sysBindings["/"] = EnvBinding{Binding: makeSysFunc(GoDivideT)}
+	env := SysEnvironment{Bindings: sysBindings}
+	return &env
 }
 
 type singleType struct {
 	Inputs  []string
 	Outputs []string
-	Order   int8
 }
 
 type TypeObj struct {
@@ -329,18 +346,18 @@ func evalListToken(list *Parser.Token) ListCell {
 		}
 		tmpCallerName := "let"
 		initEnvironment = bindVars(&list.ListVals[1], initEnvironment, firstVal.LineNum, true, true, &tmpCallerName)
-
+	default:
+		errMsg := fmt.Sprintf("Error: unhandled token type for %v at line %v.\n", firstVal.Value, firstVal.LineNum)
+		panic(errMsg)
 	}
 	return ListCell{}
 }
 
-func main() {
-	//types := []string{"Int", "Float", "Char", "Symbol", "List"}
-	input := `(let (a 1) (b 2))`
+func Initialise(input string)ListCell{
 	res := Parser.Lex(&input)
 	tokens := Parser.ParseList(res, 0)
 	for _, tok := range tokens.ListVals {
 		fmt.Println(tok)
 	}
-	evalListToken(&tokens.ListVals[0])
+	return evalListToken(&tokens.ListVals[0])
 }
