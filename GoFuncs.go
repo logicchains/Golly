@@ -25,6 +25,14 @@ const (
 	GoMultiplyT
 	GoDivideT
 	GoIfT
+	GoEvalT
+)
+
+const(
+	FUNCTION_TYPE_NAME = "Function"
+	LIST_TYPE_NAME = "List"
+	ENVIRONMENT_TYPE_NAME = "Environment"
+	VAR_TYPE_NAME = "Var"
 )
 
 type GoFunc func (Cell1 *ListCell, Cell2 *ListCell)(*ListCell, error)
@@ -328,6 +336,52 @@ func GoIf(Cell1 *ListCell, Cell2 *ListCell)([]*ListCell, error){
 		}
 	}else{
 		err := fmt.Sprintf("Error: first argument to if builtin appeared to be a bool but actually wasn't.\n", Cell1.TypeName)
+		return nil, errors.New(err)
+	}
+	returnVals = append(returnVals, returnVal)
+	return returnVals, nil
+}
+
+func EvalPrim(list []ListCell, env Environment)(*ListCell, error){
+	if list[0].TypeName != FUNCTION_TYPE_NAME{
+		err := fmt.Sprintf("Error: expected a function as first cell in list passed to eval builtin, but got a %v.\n", list[0].TypeName)
+		return nil, errors.New(err)
+	}else if list[0].TypeName == VAR_TYPE_NAME{
+		if varName, ok := list[0].Value.(string); ok {
+			binding := env.findBinding(varName, true, true)
+			if binding == nil{
+				err := fmt.Sprintf("Error: var in first cell in list passed to eval builtin, %v, is not bound.\n", varName)
+				return nil, errors.New(err)
+			}
+		}else{
+			err := fmt.Sprintf("Error: expected var in first cell of list passed to eval builtin, but it was actually not a var.\n")
+			return nil, errors.New(err)
+		}
+		
+	}
+	return nil, nil
+}
+
+func GoEval(Cell1 *ListCell, Cell2 *ListCell)([]*ListCell, error){
+	returnVals := make([]*ListCell, 0, 1)
+	returnVal := new(ListCell)
+	if Cell1.TypeName != FUNCTION_TYPE_NAME || Cell2.TypeName != ENVIRONMENT_TYPE_NAME{
+		err := fmt.Sprintf("Error: expected a list and an environment as arguments to eval builtin, but got a %v and a %v.\n", Cell1.TypeName, Cell2.TypeName)
+		return nil, errors.New(err)
+	}
+	if list, ok := Cell1.Value.([]ListCell); ok {
+		if env, ok2 := Cell1.Value.(Environment); ok2 {
+			returnValShad, err := EvalPrim(list,env)
+			if err != nil{
+				return nil, err
+			}
+			returnVal = returnValShad
+		}else{
+			err := fmt.Sprintf("Error: second argument to eval builtin claimed to an environment but wasn't.\n")
+			return nil, errors.New(err)		
+		}		
+	}else{
+		err := fmt.Sprintf("Error: first argument to eval builtin claimed to be a list but wasn't.\n")
 		return nil, errors.New(err)
 	}
 	returnVals = append(returnVals, returnVal)

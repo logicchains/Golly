@@ -7,7 +7,6 @@ import (
 )
 
 type FunctionObj struct {
-	Type   string
 	Parems []string
 	Body   []ListCell
 	Pure   bool
@@ -29,8 +28,8 @@ func (aFunc *FunctionObj) Call(funcType goFuncType, params []*ListCell)([]*ListC
 }
 
 func makeSysFunc(funcType goFuncType)ListCell{
-	return ListCell{TypeName: "Function", 
-		Value: FunctionObj{Type: "GoFunc", Pure: true, GoFunc: true, FuncType: funcType},
+	return ListCell{TypeName: FUNCTION_TYPE_NAME, 
+		Value: FunctionObj{Pure: true, GoFunc: true, FuncType: funcType},
 		Mutable: false}
 }
 
