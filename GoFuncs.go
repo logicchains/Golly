@@ -74,6 +74,14 @@ func CallGoFunc(funcType goFuncType, parameters []*ListCell)([]*ListCell, error)
 		}else{
 			return res, nil
 		}
+	case GoEvalT:
+		res, err := GoEval(parameters[0], parameters[1])
+		if err != nil{
+			return nil, err
+		}else{
+			return res, nil
+		}
+
 	default:
 			err := fmt.Sprintf("Error: attempting to call unhandled builtin function of type number %v.\n", funcType)
 			return nil, errors.New(err)
