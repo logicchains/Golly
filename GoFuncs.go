@@ -344,7 +344,7 @@ func GoIf(Cell1 *ListCell, Cell2 *ListCell, Cell3 *ListCell)([]*ListCell, error)
 	return returnVals, nil
 }
 
-func EvalPrim(list []ListCell, env Environment)([]*ListCell, error){
+func EvalPrim(list []*ListCell, env Environment)([]*ListCell, error){
 	if list[0].TypeName != FUNCTION_TYPE_NAME{
 		err := fmt.Sprintf("Error: expected a function as first cell in list passed to eval builtin, but got a %v.\n", list[0].TypeName)
 		return nil, errors.New(err)
@@ -376,19 +376,18 @@ func EvalPrim(list []ListCell, env Environment)([]*ListCell, error){
 }
 
 func GoEval(Cell1 *ListCell, Cell2 *ListCell)([]*ListCell, error){
-	returnVals := make([]*ListCell, 0, 1)
-	returnVal := new(ListCell)
+	returnVals := make([]*ListCell,0,0)
 	if Cell1.TypeName != FUNCTION_TYPE_NAME || Cell2.TypeName != ENVIRONMENT_TYPE_NAME{
 		err := fmt.Sprintf("Error: expected a list and an environment as arguments to eval builtin, but got a %v and a %v.\n", Cell1.TypeName, Cell2.TypeName)
 		return nil, errors.New(err)
 	}
-	if list, ok := Cell1.Value.([]ListCell); ok {
+	if list, ok := Cell1.Value.([]*ListCell); ok {
 		if env, ok2 := Cell1.Value.(Environment); ok2 {
 			returnValShad, err := EvalPrim(list,env)
 			if err != nil{
 				return nil, err
 			}
-			returnVal = returnValShad
+			returnVals = returnValShad
 		}else{
 			err := fmt.Sprintf("Error: second argument to eval builtin claimed to an environment but wasn't.\n")
 			return nil, errors.New(err)		
@@ -397,6 +396,5 @@ func GoEval(Cell1 *ListCell, Cell2 *ListCell)([]*ListCell, error){
 		err := fmt.Sprintf("Error: first argument to eval builtin claimed to be a list but wasn't.\n")
 		return nil, errors.New(err)
 	}
-	returnVals = append(returnVals, returnVal)
 	return returnVals, nil
 }
