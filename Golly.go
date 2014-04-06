@@ -14,9 +14,9 @@ type FunctionObj struct {
 	FuncType goFuncType
 }
 
-func (aFunc *FunctionObj) Call(funcType goFuncType, params []*ListCell)([]*ListCell, error) {
+func (aFunc *FunctionObj) Call(params []*ListCell)([]*ListCell, error) {
 	if aFunc.GoFunc{
-		returnedVals, err := CallGoFunc(funcType,  params)
+		returnedVals, err := CallGoFunc(aFunc.FuncType,  params)
 		if err != nil{
 			return nil, err
 		}else{

@@ -35,8 +35,6 @@ const(
 	VAR_TYPE_NAME = "Var"
 )
 
-type GoFunc func (Cell1 *ListCell, Cell2 *ListCell)(*ListCell, error)
-
 func CallGoFunc(funcType goFuncType, parameters []*ListCell)([]*ListCell, error){
 	switch funcType{
 	case GoAddT:
@@ -68,7 +66,7 @@ func CallGoFunc(funcType goFuncType, parameters []*ListCell)([]*ListCell, error)
 			return res, nil
 		}
 	case GoIfT:
-		res, err := GoIf(parameters[0], parameters[1])
+		res, err := GoIf(parameters[0], parameters[1], parameters[2])
 		if err != nil{
 			return nil, err
 		}else{
@@ -324,7 +322,7 @@ func GoDivide(Cell1 *ListCell, Cell2 *ListCell)([]*ListCell, error){
 	return returnVals, nil
 }
 
-func GoIf(Cell1 *ListCell, Cell2 *ListCell)([]*ListCell, error){
+func GoIf(Cell1 *ListCell, Cell2 *ListCell, Cell3 *ListCell)([]*ListCell, error){
 	returnVals := make([]*ListCell, 0, 1)
 	returnVal := new(ListCell)
 	if Cell1.TypeName != "bool"{
@@ -332,16 +330,12 @@ func GoIf(Cell1 *ListCell, Cell2 *ListCell)([]*ListCell, error){
 		return nil, errors.New(err)
 	}
 	if condVal, ok := Cell1.Value.(bool); ok {
-		if listVal, ok2 := Cell2.Value.(CellList); ok2{			
-			if condVal{
-				returnVal = &listVal.Cells[0]
-			}else{
-				returnVal = &listVal.Cells[1]
-			}
+		if condVal{
+			returnVal = Cell2
 		}else{
-			err := fmt.Sprintf("Error: second internal argument to if builtin was not actually a list.\n", Cell1.TypeName)
-			return nil, errors.New(err)
+			returnVal = Cell3
 		}
+
 	}else{
 		err := fmt.Sprintf("Error: first argument to if builtin appeared to be a bool but actually wasn't.\n", Cell1.TypeName)
 		return nil, errors.New(err)
@@ -350,7 +344,7 @@ func GoIf(Cell1 *ListCell, Cell2 *ListCell)([]*ListCell, error){
 	return returnVals, nil
 }
 
-func EvalPrim(list []ListCell, env Environment)(*ListCell, error){
+func EvalPrim(list []ListCell, env Environment)([]*ListCell, error){
 	if list[0].TypeName != FUNCTION_TYPE_NAME{
 		err := fmt.Sprintf("Error: expected a function as first cell in list passed to eval builtin, but got a %v.\n", list[0].TypeName)
 		return nil, errors.New(err)
@@ -359,6 +353,17 @@ func EvalPrim(list []ListCell, env Environment)(*ListCell, error){
 			binding := env.findBinding(varName, true, true)
 			if binding == nil{
 				err := fmt.Sprintf("Error: var in first cell in list passed to eval builtin, %v, is not bound.\n", varName)
+				return nil, errors.New(err)
+			}
+			if funct, ok := binding.Binding.Value.(FunctionObj); ok {
+				res, err := funct.Call(list[1:]); 
+				if err != nil{
+					return nil, err
+				}else{
+					return res, nil
+				}
+			}else{
+				err := fmt.Sprintf("Error: expected var in first cell of list passed to eval builtin, but it was actually not a var.\n")
 				return nil, errors.New(err)
 			}
 		}else{
