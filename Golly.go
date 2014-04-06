@@ -14,16 +14,21 @@ type FunctionObj struct {
 	FuncType goFuncType
 }
 
-func (aFunc *FunctionObj) Call(params []*ListCell)([]*ListCell, error) {
+func (aFunc *FunctionObj) Call(params []ListCell, env Environment)([]*ListCell, error) {
 	if aFunc.GoFunc{
-		returnedVals, err := CallGoFunc(aFunc.FuncType,  params)
+		returnedVals, err := CallGoFunc(aFunc.FuncType, params)
 		if err != nil{
 			return nil, err
 		}else{
 			return returnedVals, nil
 		}
 	}else{
-		return nil, nil	
+		returnedVals, err := Eval(aFunc.Body, env)
+		if err != nil{
+			return nil, err
+		}else{
+			return returnedVals, nil
+		}
 	}
 }
 
