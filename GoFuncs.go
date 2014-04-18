@@ -3,6 +3,8 @@ package Golly
 import (
 	"errors"
 	"fmt"
+	"unicode"
+	"strconv"
 )
 
 type baseType int
@@ -404,32 +406,76 @@ func parseText(input string) (CellList, error){
 	}
 }
 
-func parseList(input string) (CellList, error){
+func parseList(input string) (CellList, int, error){
 	list := CellList{}
 	listCells := make([]ListCell,0,10)
-	for i := 0; i < len(input); i++{
+	i := 0;
+	for ; i < len(input); i++{
 		switch input[i]{
 		case ' ':
 			continue
 		case '"':
-			str, err := parseStringLit(input[i:])
+			str, strLen, err := parseStringLit(input[i:])
 			if err != nil{
-				return CellList{}, err
+				return list, i, err
 			}else{
 				listCells = append(listCells, ListCell{Mutable: true, Value: str})
+				i += strLen				
 			}
+		case '\\':
+			if i < len(input) + 1{
+				listCells = append(listCells, ListCell{Mutable: true, Value: input[i+1]})
+				i ++
+			}else{
+				err := fmt.Sprintf("Error: escape character followed by EOF encountered.\n")
+				return list, i, errors.New(err)
+			}
+		}
+		if unicode.IsDigit(input[i]){
+			num, numLen, err := parseNumLit(input[i:])
+			if err != nil{
+				return list, i, err
+			}else{
+				listCells = append(listCells, ListCell{Mutable: true, Value: num})
+				i += numLen				
+			}
+			
 		}
 	}
 	list.Cells = listCells
-	return list, nil
+	return list, i, nil
 }
 
-func parseStringLit(input string) (string, error){
+func parseStringLit(input string) (string, int, error){
 	for i := 1; i < len(input); i++{
 		if input[i] == '"' && input [i-1] != '\\'{
-			return fmt.Sprint(input), nil
+			return fmt.Sprint(input), i, nil
 		}
 	}
 	err := fmt.Sprintf("Error: unterminated string encountered.\n")
-	return "", errors.New(err)
+	return "", 0, errors.New(err)
+}
+
+func parseNumLit(input string) (ListCell, int, error){
+	numPeriods := 0
+	i := 0
+	for ; i < len(input); i++{
+		if input[i] == '.'{
+			numPeriods ++
+			continue
+		}
+		if !unicode.IsNumber(input[i]){
+			break
+		}
+	}
+	switch numPeriods{
+	case 0:
+		newInt, err := strconv.ParseInt(input[:i],0,0)
+		if err != nil{
+			return ListCell{},i, err
+		}else{
+			return ListCell{Mutable: true, Value: newInt}, i, nil
+		}
+	}
+
 }
