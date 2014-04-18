@@ -333,7 +333,7 @@ func GoIf(Cell1 *ListCell, Cell2 *ListCell, Cell3 *ListCell) ([]*ListCell, error
 		}
 
 	} else {
-		err := fmt.Sprintf("Error: first argument to if builtin appeared to be a bool but actually wasn't.\n", Cell1.TypeName)
+		err := fmt.Sprintf("Error: expected bool as first argument to if builtin but got something else.\n", Cell1.TypeName)
 		return nil, errors.New(err)
 	}
 	returnVals = append(returnVals, returnVal)
@@ -375,11 +375,11 @@ func GoEval(Cell1 *ListCell, Cell2 *ListCell) ([]*ListCell, error) {
 			}
 			returnVals = returnValShad
 		} else {
-			err := fmt.Sprintf("Error: second argument to eval builtin claimed to an environment but wasn't.\n")
+			err := fmt.Sprintf("Error: expected environment as second argument to eval builtin but got something else.\n")
 			return nil, errors.New(err)
 		}
 	} else {
-		err := fmt.Sprintf("Error: first argument to eval builtin claimed to be a list but wasn't.\n")
+		err := fmt.Sprintf("Error: expected list as first argument to eval builtin but got something else.\n")
 		return nil, errors.New(err)
 	}
 	return returnVals, nil
@@ -392,4 +392,44 @@ func Eval(list []ListCell, env Environment) ([]*ListCell, error) {
 	}else{
 		return returnVals, nil
 	}
+}
+
+func parseText(input string) (CellList, error){
+	for i := 0; i < len(input); i++{
+		if input[i] == ' '{
+			continue
+		}else if input[i] == '('{
+			parseList(input[i:])
+		}
+	}
+}
+
+func parseList(input string) (CellList, error){
+	list := CellList{}
+	listCells := make([]ListCell,0,10)
+	for i := 0; i < len(input); i++{
+		switch input[i]{
+		case ' ':
+			continue
+		case '"':
+			str, err := parseStringLit(input[i:])
+			if err != nil{
+				return CellList{}, err
+			}else{
+				listCells = append(listCells, ListCell{Mutable: true, Value: str})
+			}
+		}
+	}
+	list.Cells = listCells
+	return list, nil
+}
+
+func parseStringLit(input string) (string, error){
+	for i := 1; i < len(input); i++{
+		if input[i] == '"' && input [i-1] != '\\'{
+			return fmt.Sprint(input), nil
+		}
+	}
+	err := fmt.Sprintf("Error: unterminated string encountered.\n")
+	return "", errors.New(err)
 }
