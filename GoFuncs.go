@@ -3,8 +3,8 @@ package Golly
 import (
 	"errors"
 	"fmt"
-	"unicode"
 	"strconv"
+	"unicode"
 )
 
 type baseType int
@@ -391,64 +391,80 @@ func Eval(list []ListCell, env Environment) ([]*ListCell, error) {
 	returnVals, err := EvalPrim(list, env)
 	if err != nil {
 		return nil, err
-	}else{
+	} else {
 		return returnVals, nil
 	}
 }
 
-func parseText(input string) (CellList, error){
-	for i := 0; i < len(input); i++{
-		if input[i] == ' '{
-			continue
-		}else if input[i] == '('{
-			parseList(input[i:])
-		}
-	}
-}
-
-func parseList(input string) (CellList, int, error){
+func parseText(input []rune) (CellList, int, error) {
 	list := CellList{}
-	listCells := make([]ListCell,0,10)
-	i := 0;
-	for ; i < len(input); i++{
-		switch input[i]{
+	listCells := make([]ListCell, 0, 10)
+	for i := 0; i < len(input); i++ {
+		if unicode.IsSpace(input[i]) {
+			continue
+		}
+		switch input[i] {
 		case ' ':
 			continue
 		case '"':
 			str, strLen, err := parseStringLit(input[i:])
-			if err != nil{
+			if err != nil {
 				return list, i, err
-			}else{
+			} else {
 				listCells = append(listCells, ListCell{Mutable: true, Value: str})
-				i += strLen				
+				i += strLen
 			}
 		case '\\':
-			if i < len(input) + 1{
+			if i < len(input)+1 {
 				listCells = append(listCells, ListCell{Mutable: true, Value: input[i+1]})
-				i ++
-			}else{
+				i++
+			} else {
 				err := fmt.Sprintf("Error: escape character followed by EOF encountered.\n")
 				return list, i, errors.New(err)
 			}
-		}
-		if unicode.IsDigit(input[i]){
-			num, numLen, err := parseNumLit(input[i:])
-			if err != nil{
+		case '(':
+			nestedList, listLen, err := parseText(input[i:])
+			if err != nil {
 				return list, i, err
-			}else{
-				listCells = append(listCells, ListCell{Mutable: true, Value: num})
-				i += numLen				
+			} else {
+				listCells = append(listCells, ListCell{Mutable: true, Value: nestedList})
+				i += listLen
 			}
-			
+
+		case ')':
+			list.Cells = listCells
+			return list, i, nil
+		}
+		if unicode.IsDigit(input[i]) {
+			num, numLen, err := parseNumLit(input[i:])
+			if err != nil {
+				return list, i, err
+			} else {
+				listCells = append(listCells, ListCell{Mutable: true, Value: num})
+				i += numLen
+			}
+
+		} else if unicode.IsLetter(input[i]) {
+			indentifier, identLen, err := parseIdentifier(input[i:])
+			if err != nil {
+				return list, i, err
+			} else {
+				listCells = append(listCells, ListCell{Mutable: true, Value: indentifier})
+				i += identLen
+			}
+		} else {
+			err := fmt.Sprintf("Error: unhandled character encountered.\n")
+			return list, i, errors.New(err)
 		}
 	}
-	list.Cells = listCells
-	return list, i, nil
+	err := fmt.Sprintf("Error: attempting to parse empty list.\n")
+	return list, 0, errors.New(err)	
+
 }
 
-func parseStringLit(input string) (string, int, error){
-	for i := 1; i < len(input); i++{
-		if input[i] == '"' && input [i-1] != '\\'{
+func parseStringLit(input []rune) (string, int, error) {
+	for i := 1; i < len(input); i++ {
+		if input[i] == '"' && input[i-1] != '\\' {
 			return fmt.Sprint(input), i, nil
 		}
 	}
@@ -456,26 +472,46 @@ func parseStringLit(input string) (string, int, error){
 	return "", 0, errors.New(err)
 }
 
-func parseNumLit(input string) (ListCell, int, error){
-	numPeriods := 0
+func parseIdentifier(input []rune) (string, int, error) {
 	i := 0
-	for ; i < len(input); i++{
-		if input[i] == '.'{
-			numPeriods ++
-			continue
-		}
-		if !unicode.IsNumber(input[i]){
+	for ; i < len(input); i++ {
+		if unicode.IsSpace(input[i]) || input[i] == ')' {
 			break
 		}
 	}
-	switch numPeriods{
+	return string(input[:i]), i, nil
+}
+
+func parseNumLit(input []rune) (ListCell, int, error) {
+	numPeriods := 0
+	i := 0
+	for ; i < len(input); i++ {
+		if input[i] == '.' {
+			numPeriods++
+			continue
+		}
+		if !unicode.IsNumber(input[i]) {
+			break
+		}
+	}
+	switch numPeriods {
 	case 0:
-		newInt, err := strconv.ParseInt(input[:i],0,0)
-		if err != nil{
-			return ListCell{},i, err
-		}else{
+		newInt, err := strconv.ParseInt(string(input[:i]), 0, 0)
+		if err != nil {
+			return ListCell{}, i, err
+		} else {
 			return ListCell{Mutable: true, Value: newInt}, i, nil
 		}
+	case 1:
+		newFloat, err := strconv.ParseFloat(string(input[:i]), 0)
+		if err != nil {
+			return ListCell{}, i, err
+		} else {
+			return ListCell{Mutable: true, Value: newFloat}, i, nil
+		}
+	default:
+		err := fmt.Sprintf("Error: poorly formatted float encountered; too many periods.\n")
+		return ListCell{}, i, errors.New(err)
 	}
 
 }
